@@ -1,8 +1,8 @@
 This is a forked and modded version of the original PowerTrader AI made by Stephen Hughes https://github.com/garagesteve1155
 
-MY CHANGES:
+# MY UPDATE LOG:
 
-# Exchange:
+## Exchange:
 
 Replaced Robinhood with OKX spot trading (v5 API: key, secret, passphrase).
 New okx_client.py translates the bot’s existing exchange calls into OKX calls, so the strategy code is untouched.
