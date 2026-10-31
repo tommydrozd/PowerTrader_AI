@@ -2,7 +2,7 @@ This is a forked and modded version of the original PowerTrader AI made by Steph
 
 MY CHANGES:
 
-Exchange:
+# Exchange:
 
 Replaced Robinhood with OKX spot trading (v5 API: key, secret, passphrase).
 New okx_client.py translates the bot’s existing exchange calls into OKX calls, so the strategy code is untouched.
@@ -11,7 +11,7 @@ Configurable host (EEA, global, US) and quote currency (USDC, USDT, EUR).
 Prices now come from OKX’s public feed, with no keys needed.
 Removed the PyNaCl and cryptography dependencies.
 
-Hub:
+# Hub:
 
 New Settings → OKX API setup wizard with a Test connection button, replacing the Robinhood wizard.
 Profit summary in the account panel: completed trades, total profit, profit today and last 7 days, and best, worst and average trade.
@@ -20,13 +20,13 @@ Account Value chart: 24h / 7d / 1M / All range buttons.
 Account Value chart: separate “Trade zones” and “Legend” show/hide buttons.
 Account Value chart: Y axis now fits the data.
 
-Telegram:
+# Telegram:
 
 New notifier.py, set up from Settings → Telegram.
 Messages for every buy, DCA buy, sell and long-term buy, with the profit shown on sells.
 Alerts for the OKX connection dropping, orders rejected or below OKX’s minimum size, and failed long-term buys.
 
-Trader:
+# Trader:
 
 The long-term-holdings bucket now buys once it reaches $5, up from $0.50 (LTH_BUCKET_MIN_USD).
 
