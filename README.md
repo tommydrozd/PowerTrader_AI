@@ -1,4 +1,4 @@
-Thif is a forked and modded version of the original PowerTrader AI made by 
+Thif is a forked and modded version of the original PowerTrader AI made by Stephen Hughes https://github.com/garagesteve1155
 
 MY CHANGES:
 
@@ -30,8 +30,9 @@ Trader:
 
 The long-term-holdings bucket now buys once it reaches $5, up from $0.50 (LTH_BUCKET_MIN_USD).
 
-
-
+######################################################
+Original ReadMe below
+######################################################
 
 # PowerTrader_AI
 Fully automated crypto trading powered by a custom price prediction AI and a structured/tiered DCA system.
