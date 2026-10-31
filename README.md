@@ -1,3 +1,37 @@
+Thif is a forked and modded version of the original PowerTrader AI made by 
+
+MY CHANGES:
+
+Exchange:
+
+Replaced Robinhood with OKX spot trading (v5 API: key, secret, passphrase).
+New okx_client.py translates the bot’s existing exchange calls into OKX calls, so the strategy code is untouched.
+Demo mode (simulated funds) is on by default.
+Configurable host (EEA, global, US) and quote currency (USDC, USDT, EUR).
+Prices now come from OKX’s public feed, with no keys needed.
+Removed the PyNaCl and cryptography dependencies.
+
+Hub:
+
+New Settings → OKX API setup wizard with a Test connection button, replacing the Robinhood wizard.
+Profit summary in the account panel: completed trades, total profit, profit today and last 7 days, and best, worst and average trade.
+New “Profit by Coin” tab next to Trade History, with a table of profit per coin and a table of daily profit.
+Account Value chart: 24h / 7d / 1M / All range buttons.
+Account Value chart: separate “Trade zones” and “Legend” show/hide buttons.
+Account Value chart: Y axis now fits the data.
+
+Telegram:
+
+New notifier.py, set up from Settings → Telegram.
+Messages for every buy, DCA buy, sell and long-term buy, with the profit shown on sells.
+Alerts for the OKX connection dropping, orders rejected or below OKX’s minimum size, and failed long-term buys.
+
+Trader:
+
+The long-term-holdings bucket now buys once it reaches $5, up from $0.50 (LTH_BUCKET_MIN_USD).
+
+
+
 
 # PowerTrader_AI
 Fully automated crypto trading powered by a custom price prediction AI and a structured/tiered DCA system.
