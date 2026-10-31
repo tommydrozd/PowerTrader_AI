@@ -1,4 +1,4 @@
-This is a forked and modded version of the original PowerTrader AI made by Stephen Hughes https://github.com/garagesteve1155
+This is a forked and modded version of the original PowerTrader AI made by Stephen Hughes @ https://github.com/garagesteve1155
 
 # MY UPDATE LOG:
 
