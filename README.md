@@ -33,6 +33,7 @@ The long-term-holdings bucket now buys once it reaches $5, up from $0.50 (LTH_BU
 ######################################################
 
 Original ReadMe below
+
 ######################################################
 
 # PowerTrader_AI
