@@ -1,34 +1,51 @@
 This is a forked and modded version of the original PowerTrader AI made by Stephen Hughes @ https://github.com/garagesteve1155
 
-# MY UPDATE LOG:
+## MY OKX Fork: Changes
 
-## Exchange:
+This fork replaces Robinhood with **OKX** spot trading and adds a few quality-of-life features.
 
-Replaced Robinhood with OKX spot trading (v5 API: key, secret, passphrase).
-New okx_client.py translates the bot’s existing exchange calls into OKX calls, so the strategy code is untouched.
-Demo mode (simulated funds) is on by default.
-Configurable host (EEA, global, US) and quote currency (USDC, USDT, EUR).
-Prices now come from OKX’s public feed, with no keys needed.
-Removed the PyNaCl and cryptography dependencies.
+### Exchange
+- OKX spot trading through the v5 API (API key, secret and passphrase).
+- New `okx_client.py` translates the bot's exchange calls into OKX calls, so the strategy code is unchanged.
+- **Demo mode** (simulated funds) is on by default.
+- Configurable OKX host (EEA, global or US) and quote currency (USDC, USDT or EUR).
+- Prices come from OKX's public feed, so no keys are needed for market data.
+- Removed the `PyNaCl` and `cryptography` dependencies.
 
-## Hub:
+### Hub
+- New **Settings → OKX API** setup wizard with a *Test connection* button.
+- **Profit summary** in the account panel:
+  - completed trades and total profit
+  - profit today and over the last 7 days
+  - best, worst and average trade
+- New **Profit by Coin** tab next to *Trade History*: profit per coin and daily profit.
+- **Account Value chart:**
+  - `24h` / `7d` / `1M` / `All` range buttons
+  - separate **Trade zones** and **Legend** show/hide buttons
+  - Y axis fits the data
 
-New Settings → OKX API setup wizard with a Test connection button, replacing the Robinhood wizard.
-Profit summary in the account panel: completed trades, total profit, profit today and last 7 days, and best, worst and average trade.
-New “Profit by Coin” tab next to Trade History, with a table of profit per coin and a table of daily profit.
-Account Value chart: 24h / 7d / 1M / All range buttons.
-Account Value chart: separate “Trade zones” and “Legend” show/hide buttons.
-Account Value chart: Y axis now fits the data.
+### Telegram notifications
+- New `notifier.py`, set up from **Settings → Telegram**.
+- Messages for every buy, DCA buy, sell and long-term buy, with the profit shown on sells.
+- Alerts for:
+  - OKX connection failures
+  - orders rejected by OKX, or below its minimum size
+  - failed long-term buys
 
-## Telegram:
+### Trader
+- The long-term-holdings profit bucket now buys once it reaches **$5**, up from $0.50 (`LTH_BUCKET_MIN_USD` in `pt_trader.py`).
 
-New notifier.py, set up from Settings → Telegram.
-Messages for every buy, DCA buy, sell and long-term buy, with the profit shown on sells.
-Alerts for the OKX connection dropping, orders rejected or below OKX’s minimum size, and failed long-term buys.
+### Setup
+1. `python -m pip install -r requirements.txt`
+2. Create an OKX API key with **Read + Trade** permissions (no Withdraw). Use a **Demo** key first.
+3. `python pt_hub.py` → Settings → **OKX API → Setup Wizard** → *Test connection* → *Save*.
+4. Optional: Settings → **Telegram → Setup** for notifications.
+5. Train, then Start All. Stay on Demo until a full buy, DCA and sell cycle works.
 
-## Trader:
+### Files kept out of the repo
+`okx_key.txt`, `okx_secret.txt`, `okx_passphrase.txt`, `okx_settings.json`, `telegram_settings.json`, `gui_settings.json` and `hub_data/` hold credentials or personal data. List them in `.gitignore`.
 
-The long-term-holdings bucket now buys once it reaches $5, up from $0.50 (LTH_BUCKET_MIN_USD).
+
 
 ######################################################
 
