@@ -8,13 +8,10 @@ import shutil
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict, Optional
 import requests
-from nacl.signing import SigningKey
 import os
 import colorama
 from colorama import Fore, Style
 import traceback
-from cryptography.hazmat.primitives.asymmetric import ed25519
-from cryptography.hazmat.primitives import serialization
 
 
 
@@ -430,25 +427,21 @@ def _refresh_paths_and_symbols():
 
 
 
-#API STUFF
-API_KEY = ""
-BASE64_PRIVATE_KEY = ""
+# Minimum USD the LTH profit bucket must reach before it is spent on a long-term coin.
+LTH_BUCKET_MIN_USD = 5.0
 
+#API STUFF (OKX)
+import okx_client
 try:
-    with open('r_key.txt', 'r', encoding='utf-8') as f:
-        API_KEY = (f.read() or "").strip()
-    with open('r_secret.txt', 'r', encoding='utf-8') as f:
-        BASE64_PRIVATE_KEY = (f.read() or "").strip()
+    import notifier  # Telegram notifications (optional)
 except Exception:
-    API_KEY = ""
-    BASE64_PRIVATE_KEY = ""
+    notifier = None
 
-if not API_KEY or not BASE64_PRIVATE_KEY:
+if okx_client.load_credentials() is None:
     print(
-        "\n[PowerTrader] Robinhood API credentials not found.\n"
-        "Open the GUI and go to Settings → Robinhood API → Setup / Update.\n"
-        "That wizard will generate your keypair, tell you where to paste the public key on Robinhood,\n"
-        "and will save r_key.txt + r_secret.txt so this trader can authenticate.\n"
+        "\n[PowerTrader] OKX API credentials not found.\n"
+        "Open the GUI and go to Settings -> OKX API -> Setup Wizard.\n"
+        "It saves okx_key.txt, okx_secret.txt and okx_passphrase.txt so this trader can authenticate.\n"
     )
     raise SystemExit(1)
 
@@ -457,10 +450,13 @@ class CryptoAPITrading:
         # keep a copy of the folder map (same idea as trader.py)
         self.path_map = dict(base_paths)
 
-        self.api_key = API_KEY
-        private_key_seed = base64.b64decode(BASE64_PRIVATE_KEY)
-        self.private_key = SigningKey(private_key_seed)
-        self.base_url = "https://trading.robinhood.com"
+        # OKX adapter: translates the bot's Robinhood-style calls into OKX v5 REST calls.
+        self.okx = okx_client.OkxRobinhoodShim()
+        self.base_url = ""
+        print(
+            f"[PowerTrader] Exchange: OKX | mode: {'DEMO (simulated funds)' if self.okx.client.demo else 'LIVE (REAL FUNDS)'}"
+            f" | quote currency: {self.okx.quote} | host: {self.okx.client.base_url}"
+        )
 
         self.dca_levels_triggered = {}  # Track DCA levels for each crypto
         self.dca_levels = list(DCA_LEVELS)  # Hard DCA triggers (percent PnL)
@@ -1409,11 +1405,11 @@ class CryptoAPITrading:
 
         # Spec rule: if a single trade's allocated portion >= $0.50, spend that whole portion (plus any bucket)
         # Note: for losses alloc will be negative, so this branch won't trigger.
-        if alloc >= 0.50:
+        if alloc >= LTH_BUCKET_MIN_USD:
             spend_now = float(alloc) + float(prev_bucket)
             bucket = 0.0
         else:
-            if bucket >= 0.50:
+            if bucket >= LTH_BUCKET_MIN_USD:
                 spend_now = float(bucket)
                 bucket = 0.0
 
@@ -1421,12 +1417,17 @@ class CryptoAPITrading:
         self._pnl_ledger["lth_profit_bucket_usd"] = float(bucket)
         self._save_pnl_ledger()
 
-        if spend_now < 0.50:
+        if spend_now < LTH_BUCKET_MIN_USD:
             return
 
         pick = self._pick_lth_symbol_to_buy()
         if not pick:
             # can't pick a coin; put it back into bucket so it isn't lost
+            try:
+                if notifier is not None:
+                    notifier.alert("lth_nopick", f"⚠️ LTH bucket (${spend_now:.2f}) is ready but no long-term coin is eligible to buy.", cooldown=21600)
+            except Exception:
+                pass
             self._pnl_ledger["lth_profit_bucket_usd"] = float(bucket + spend_now)
             self._save_pnl_ledger()
             return
@@ -1446,6 +1447,11 @@ class CryptoAPITrading:
             self._save_pnl_ledger()
         else:
             # failed buy -> restore funds to bucket so they're not lost
+            try:
+                if notifier is not None:
+                    notifier.alert("lth_fail", f"⚠️ LTH buy of ${spend_now:.2f} {pick} failed. Funds were returned to the bucket.", cooldown=21600)
+            except Exception:
+                pass
             self._pnl_ledger["lth_profit_bucket_usd"] = float(bucket + spend_now)
             self._save_pnl_ledger()
 
@@ -2235,6 +2241,16 @@ class CryptoAPITrading:
         }
         self._append_jsonl(TRADE_HISTORY_PATH, entry)
 
+        # Telegram: announce every recorded fill
+        try:
+            if notifier is not None:
+                notifier.notify_trade(
+                    entry,
+                    total_realized=float((self._pnl_ledger or {}).get("total_realized_profit_usd", 0.0) or 0.0),
+                )
+        except Exception:
+            pass
+
         # IMPORTANT (LIVE DCA STAGE FIX):
         # trade_history.jsonl is bot-generated. But initialize_dca_levels() filters orders by
         # _is_bot_order_id(), which checks in-memory caches:
@@ -2582,40 +2598,12 @@ class CryptoAPITrading:
 
 
     def make_api_request(self, method: str, path: str, body: Optional[str] = "") -> Any:
-
-        timestamp = self._get_current_timestamp()
-        headers = self.get_authorization_header(method, path, body, timestamp)
-        url = self.base_url + path
-
+        """Same contract as the old Robinhood version: returns parsed JSON, or None on failure.
+        Everything is routed through the OKX adapter (okx_client.py)."""
         try:
-            if method == "GET":
-                response = requests.get(url, headers=headers, timeout=10)
-            elif method == "POST":
-                response = requests.post(url, headers=headers, json=json.loads(body), timeout=10)
-
-            response.raise_for_status()
-            return response.json()
-        except requests.HTTPError as http_err:
-            try:
-                # Parse and return the JSON error response
-                error_response = response.json()
-                return error_response  # Return the JSON error for further handling
-            except Exception:
-                return None
+            return self.okx.request(method, path, body or "")
         except Exception:
             return None
-
-    def get_authorization_header(
-            self, method: str, path: str, body: str, timestamp: int
-    ) -> Dict[str, str]:
-        message_to_sign = f"{self.api_key}{timestamp}{path}{method}{body}"
-        signed = self.private_key.sign(message_to_sign.encode("utf-8"))
-
-        return {
-            "x-api-key": self.api_key,
-            "x-signature": base64.b64encode(signed.signature).decode("utf-8"),
-            "x-timestamp": str(timestamp),
-        }
 
     def get_account(self) -> Any:
         path = "/api/v1/crypto/trading/accounts/"
@@ -3073,6 +3061,22 @@ class CryptoAPITrading:
             except Exception:
                 pass #print(traceback.format_exc())
 
+            # Telegram alert for rejected buys (precision errors are retried silently below)
+            try:
+                if notifier is not None and response and isinstance(response, dict) and "errors" in response:
+                    _details = " | ".join(str(e.get("detail", "")) for e in response["errors"])
+                    if "greater than or equal to" in _details:
+                        notifier.alert(
+                            f"order_min_{symbol}",
+                            f"⚠️ BUY {symbol} skipped: order is below OKX's minimum size ({_details[:120]}). "
+                            "Raise the start allocation or the LTH threshold.",
+                            cooldown=21600,
+                        )
+                    elif "too much precision" not in _details:
+                        notifier.alert(f"order_buy_{symbol}", f"⚠️ BUY {symbol} rejected by OKX: {_details[:200]}", cooldown=1800)
+            except Exception:
+                pass
+
             # Check for precision errors
             if response and "errors" in response:
                 for error in response["errors"]:
@@ -3218,6 +3222,14 @@ class CryptoAPITrading:
             except Exception:
                 pass #print(traceback.format_exc())
 
+        # Telegram alert when a sell fails or is rejected
+        try:
+            if notifier is not None and (response is None or (isinstance(response, dict) and "errors" in response)):
+                _d = "no response from OKX" if response is None else " | ".join(str(e.get("detail", "")) for e in response.get("errors", []))
+                notifier.alert(f"order_sell_{symbol}", f"⚠️ SELL {symbol} failed: {_d[:200]}", cooldown=1800)
+        except Exception:
+            pass
+
         return response
 
 
@@ -3225,6 +3237,25 @@ class CryptoAPITrading:
 
 
 
+
+    def _check_api_health(self, account) -> None:
+        """Telegram alert when OKX stops answering (5 failed account checks in a row)."""
+        try:
+            ok = isinstance(account, dict) and ("buying_power" in account)
+            if ok:
+                if getattr(self, "_api_fail_count", 0) >= 5 and notifier is not None:
+                    notifier.resolved("api_down", "✅ OKX connection restored.")
+                self._api_fail_count = 0
+            else:
+                self._api_fail_count = int(getattr(self, "_api_fail_count", 0)) + 1
+                if self._api_fail_count >= 5 and notifier is not None:
+                    notifier.alert(
+                        "api_down",
+                        "⚠️ OKX connection is failing (5 checks in a row). Check internet, API key permissions and the key's IP allowlist.",
+                        cooldown=3600,
+                    )
+        except Exception:
+            pass
 
     def manage_trades(self):
         trades_made = False  # Flag to track if any trade was made in this iteration
@@ -3267,6 +3298,7 @@ class CryptoAPITrading:
 
         # Fetch account details
         account = self.get_account()
+        self._check_api_health(account)
         # Fetch holdings
         holdings = self.get_holdings()
         # Fetch trading pairs
